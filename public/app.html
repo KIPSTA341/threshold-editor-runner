@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Limitless Website Editor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">LIMITLESS <span>Website Editor</span></div>
+  <label class="site-pick">Website <select id="site"></select></label>
+  <nav class="tabs" id="tabs">
+    <button data-view="edit" class="on">New request</button>
+    <button data-view="list">Requests</button>
+    <button data-view="people" class="admin-only" hidden>People</button>
+    <button data-view="activity" class="admin-only" hidden>Activity</button>
+  </nav>
+  <div class="who"><span id="who"></span> <button class="link" id="logout">Sign out</button></div>
+</header>
+
+<main>
+<section class="view" id="view-edit">
+  <aside class="panel">
+    <div class="status" id="status">New request</div>
+    <ol class="steps">
+      <li><h2>Page</h2><select id="page" aria-label="Page"></select></li>
+      <li><h2>What to change</h2>
+        <p class="hint">Click anything in the preview: text, a button, a link, an image, a card, the menu or the footer.</p>
+        <div id="selection" class="selection empty">Nothing selected yet.</div>
+        <div id="scope" class="scope" role="radiogroup" aria-label="How much to change"></div>
+        <p id="sel-note" class="note" hidden></p>
+        <details id="areas-box"><summary>Or choose a whole area from a list</summary>
+          <div id="sections" class="choice-list" role="radiogroup" aria-label="Area"></div>
+        </details>
+      </li>
+      <li><h2>Type of change <span class="muted">(tick any that apply)</span></h2>
+        <div id="types" class="types"></div>
+        <label id="placement-row" class="row" hidden>Where should the new item go?
+          <select id="placement"><option value="">Choose…</option><option value="after">After the selection</option><option value="before">Before the selection</option><option value="inside">Inside the selection</option><option value="replace">Instead of the selection</option></select></label>
+        <div class="row">Which screens?
+          <div class="seg small-seg" id="devices" role="radiogroup">
+            <button type="button" data-v="all" class="on">All screens</button><button type="button" data-v="desktop">Desktop &amp; tablet</button><button type="button" data-v="mobile">Mobile only</button>
+          </div>
+        </div>
+      </li>
+      <li><h2>Describe the change</h2>
+        <textarea id="instruction" rows="5" maxlength="4000" placeholder="In plain English. For example: “Make this heading shorter and punchier, keep the italic second line.” or “Replace this photo with the attached one.” or “Add a short FAQ section after this one.”"></textarea>
+      </li>
+      <li><h2>Keep unchanged</h2>
+        <p class="auto-protect" id="auto-protect">Choose what to change first.</p>
+        <p class="hint">Inside your selection, is there anything that must stay exactly as it is? <button class="link" id="pick-items">Pick items in the preview</button></p>
+        <ul id="protect-items" class="chips"></ul>
+        <label class="check warn" id="shared-box"><input type="checkbox" id="allow-shared"> <span><b>Allow changes to shared parts used on every page</b> (navigation, menu, footer, fonts, colours, site-wide styles). <span class="muted">A publisher must approve before anything is published.</span></span></label>
+      </li>
+      <li><h2>Images <span class="muted">(optional)</span></h2>
+        <label class="drop" id="drop"><input type="file" id="files" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+          Drop screenshots or new images here, or <u>browse</u> · up to 6, 8 MB each</label>
+        <ul id="thumbs" class="thumbs"></ul>
+      </li>
+    </ol>
+    <p class="err" id="form-err" role="alert"></p>
+    <p class="ok" id="form-ok" role="status"></p>
+    <div class="actions">
+      <button class="btn" id="save">Save draft</button>
+      <button class="btn primary" id="generate">Generate Changes</button>
+    </div>
+    <div id="gen" class="gen" hidden aria-live="polite"></div>
+    <button class="link small" id="new-req" hidden>Start a new request</button>
+  </aside>
+
+  <div class="stage">
+    <div class="stage-bar">
+      <div class="seg" id="mode" role="group" aria-label="Click mode">
+        <button data-mode="change" class="on">Select what to change</button>
+        <button data-mode="protect">Keep items unchanged</button>
+        <button data-mode="off">Browse</button>
+      </div>
+      <div class="seg" id="device" role="group" aria-label="Device">
+        <button data-device="desktop" class="on">Desktop</button>
+        <button data-device="mobile">Mobile</button>
+      </div>
+      <a id="live" class="link small" target="_blank" rel="noopener">Open live page ↗</a>
+    </div>
+    <div class="mode-hint" id="mode-hint"></div>
+    <div class="frame-wrap" id="frame-wrap">
+      <div class="frame-box" id="frame-box"><iframe id="frame" title="Website preview" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+    </div>
+    <div class="version muted small" id="version"></div>
+    <div class="review" id="review" hidden>
+      <div class="stage-bar">
+        <b>Before &amp; after</b>
+        <label class="small">Page <select id="rv-page"></select></label>
+        <div class="seg" id="rv-device" role="group" aria-label="Device"><button data-device="desktop" class="on">Desktop</button><button data-device="mobile">Mobile</button></div>
+        <label class="check small"><input type="checkbox" id="rv-sync" checked> Scroll together</label>
+        <button class="link small" id="rv-close">Back to editing</button>
+      </div>
+      <div class="compare" id="rv-wrap">
+        <figure><figcaption>Before · the published website</figcaption><div class="frame-box"><iframe id="rv-a" title="Before" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe></div></figure>
+        <figure><figcaption>After · generated version (not published)</figcaption><div class="frame-box"><iframe id="rv-b" title="After" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe></div></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="view-list" hidden>
+  <div class="card"><h2>Requests</h2><table class="tbl"><thead><tr><th>#</th><th>Where</th><th>Change</th><th>Status</th><th>By</th><th>Updated</th></tr></thead><tbody id="req-rows"></tbody></table></div>
+</section>
+
+<section class="view" id="view-people" hidden>
+  <div class="card"><h2>People</h2>
+    <table class="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Access</th><th></th></tr></thead><tbody id="user-rows"></tbody></table>
+    <h3>Add a person</h3>
+    <form id="add-user" class="inline-form">
+      <input name="name" placeholder="Full name" required><input name="email" type="email" placeholder="Email" required>
+      <select name="role"><option value="editor">Editor – can request changes</option><option value="publisher">Publisher – can also publish</option><option value="viewer">Viewer – read only</option><option value="admin">Administrator</option></select>
+      <input name="password" type="password" placeholder="Temporary password (12+ characters)" minlength="12" required autocomplete="new-password">
+      <button class="btn primary">Add</button>
+    </form>
+    <p class="err" id="user-err"></p>
+  </div>
+</section>
+
+<section class="view" id="view-activity" hidden>
+  <div class="card"><h2>Activity log</h2><table class="tbl"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
+</section>
+</main>
+<script src="/assets/app.js"></script>
+</body>
+</html>
