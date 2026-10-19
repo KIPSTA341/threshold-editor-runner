@@ -1,0 +1,8 @@
+node_modules/
+data/
+*.log
+test-results/
+
+cloud/node_modules/
+cloud/**/.wrangler/
+cloud/**/.dev.vars

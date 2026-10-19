@@ -1,0 +1,32 @@
+[
+  {
+    "id": "threshold",
+    "name": "Threshold",
+    "repo": "https://github.com/KIPSTA341/Threshold-Website.git",
+    "githubRepo": "KIPSTA341/Threshold-Website",
+    "branch": "main",
+    "liveUrl": "https://limitless.institute/threshold",
+    "pagesUrl": "https://kipsta341.github.io/Threshold-Website/",
+    "publishEnabled": false,
+    "allowedPaths": ["*.html", "site.css", "site.js"],
+    "sharedFiles": ["site.css", "site.js"],
+    "excludePages": [],
+    "labelSelector": ".kicker",
+    "sectionSelector": "#main > section"
+  },
+  {
+    "id": "threshold-test",
+    "name": "Threshold (TEST copy)",
+    "repo": "https://github.com/KIPSTA341/Threshold-Website-Test.git",
+    "githubRepo": "KIPSTA341/Threshold-Website-Test",
+    "branch": "main",
+    "liveUrl": "https://kipsta341.github.io/Threshold-Website-Test/",
+    "pagesUrl": "https://kipsta341.github.io/Threshold-Website-Test/",
+    "publishEnabled": true,
+    "allowedPaths": ["*.html", "site.css", "site.js"],
+    "sharedFiles": ["site.css", "site.js"],
+    "excludePages": [],
+    "labelSelector": ".kicker",
+    "sectionSelector": "#main > section"
+  }
+]

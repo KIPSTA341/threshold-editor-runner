@@ -1,0 +1,32 @@
+{
+  "name": "threshold-editor",
+  "version": "1.0.0",
+  "description": "Limitless Threshold Website Editor",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "user:add": "node scripts/add-user.js",
+    "backup": "node scripts/backup.js",
+    "test": "node --test --test-concurrency=1 test/api.test.js test/generate.test.js test/review.test.js test/publish.test.js",
+    "test:e2e-generate": "node test/e2e-generate.js",
+    "test:e2e": "node test/e2e.js",
+    "test:e2e-launch": "node test/e2e-launch.js",
+    "verify:ai": "node scripts/verify-live-ai.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cheerio": "^1.2.0",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "parse5": "^7.3.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "playwright": "1.56.0"
+  }
+}
