@@ -1,50 +1,40 @@
-// Serves files of the PUBLIC test repository at an exact commit, behind HMAC-signed, expiring links.
-// Injects the editor's click-to-select overlay into HTML. Read-only; no cookies; framing limited to the editor.
-const OVERLAY = "/* Injected into previews only (never into the live site). Lets the editor pick what to change and what to keep\n   by clicking. Talks to the parent editor via postMessage, restricted to the editor's origin. Site-agnostic:\n   the section selector comes from the site's configuration. */\n(function () {\n  'use strict';\n  var me = document.currentScript;\n  var EDITOR = me && me.getAttribute('data-editor-origin');\n  var SECTION_SEL = (me && me.getAttribute('data-section-selector')) || 'main > section';\n  if (!EDITOR || window.parent === window) return;\n\n  var SKIP = { MAIN: 1, SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1, LINK: 1, META: 1 };\n  var state = { mode: 'off', area: null, target: null, protectedSelectors: [] };\n\n  var css = document.createElement('style');\n  css.textContent =\n    '[data-tse-hover]{outline:3px dashed #E2472A !important;outline-offset:-3px;cursor:pointer !important}' +\n    '[data-tse-hover-p]{outline:3px dashed #2F7DE1 !important;outline-offset:-3px;cursor:pointer !important}' +\n    '[data-tse-area]{outline:2px dashed rgba(226,71,42,.75) !important;outline-offset:-2px}' +\n    '[data-tse-sel]{outline:4px solid #E2472A !important;outline-offset:-4px}' +\n    '[data-tse-prot]{outline:3px solid #2F7DE1 !important;outline-offset:-3px}' +\n    '#tse-tip{position:fixed;z-index:2147483647;pointer-events:none;background:#111;color:#fff;font:600 12px/1.35 system-ui,sans-serif;' +\n    'padding:6px 9px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;max-width:300px}';\n  document.head.appendChild(css);\n  var tip = document.createElement('div');\n  tip.id = 'tse-tip';\n  document.documentElement.appendChild(tip);\n\n  function sections() { return Array.prototype.slice.call(document.querySelectorAll(SECTION_SEL)); }\n  function post(msg) { window.parent.postMessage(msg, EDITOR); }\n  function pagePath() { var p = location.pathname.split('/').pop(); return p || 'index.html'; }\n  function cssEscape(s) { return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, '\\\\$&'); }\n  function clean(s) { return String(s || '').replace(/\\s+/g, ' ').trim(); }\n  function q(sel) { try { return document.querySelector(sel); } catch (e) { return null; } }\n\n  function nthOfType(el) { var i = 1, s = el; while ((s = s.previousElementSibling)) if (s.tagName === el.tagName) i++; return i; }\n  function uniqueSelector(el) {\n    var parts = [];\n    while (el && el.nodeType === 1 && el !== document.body && el !== document.documentElement) {\n      if (el.id && document.querySelectorAll('#' + cssEscape(el.id)).length === 1) { parts.unshift('#' + cssEscape(el.id)); return parts.join(' > '); }\n      parts.unshift(el.tagName.toLowerCase() + ':nth-of-type(' + nthOfType(el) + ')');\n      el = el.parentElement;\n    }\n    parts.unshift('body');\n    return parts.join(' > ');\n  }\n\n  // Which area an element belongs to: a page section, or a shared area outside the main content.\n  function areaOf(el) {\n    var sec = el.closest && el.closest(SECTION_SEL);\n    if (sec) {\n      var i = sections().indexOf(sec);\n      return { kind: 'section', index: i, el: sec, selector: SECTION_SEL + ':nth-of-type(' + (i + 1) + ')' };\n    }\n    var top = el;\n    while (top && top.parentElement && top.parentElement !== document.body) top = top.parentElement;\n    if (!top || top.parentElement !== document.body || SKIP[top.tagName] || top.id === 'tse-tip') return null;\n    var cls = clean(top.getAttribute('class'));\n    var key = 'shared:' + top.tagName.toLowerCase() + (top.id ? '#' + top.id : '') + (cls ? '.' + cls.split(' ').join('.') : '');\n    return { kind: 'shared', key: key, el: top, selector: 'body > ' + top.tagName.toLowerCase() + ':nth-of-type(' + nthOfType(top) + ')' };\n  }\n\n  function kindOf(el) {\n    var t = el.tagName.toLowerCase(), cls = ' ' + (el.getAttribute('class') || '') + ' ';\n    if (/^h[1-6]$/.test(t)) return 'heading';\n    if (t === 'img' || t === 'picture' || t === 'svg' || t === 'video') return 'image';\n    if (t === 'canvas') return 'animation';\n    if (t === 'button' || (t === 'a' && /\\sbtn/.test(cls))) return 'button';\n    if (t === 'a') return 'link';\n    if (t === 'p' || t === 'blockquote') return 'paragraph';\n    if (t === 'ul' || t === 'ol' || t === 'dl') return 'list';\n    if (t === 'li' || t === 'article' || /card|tile|item/.test(cls)) return 'card';\n    if (t === 'table') return 'table';\n    if (t === 'tr' || t === 'td' || t === 'th') return 'table cell';\n    if (t === 'input' || t === 'textarea' || t === 'select' || t === 'form' || t === 'label') return 'form';\n    if (t === 'nav') return 'navigation';\n    if (t === 'header') return 'header';\n    if (t === 'footer') return 'footer';\n    if (t === 'section') return 'section';\n    if (t === 'span' || t === 'small' || t === 'em' || t === 'b' || t === 'strong' || t === 'i' || t === 'time') return 'label';\n    return 'block';\n  }\n  var NAMES = { heading: 'Heading', image: 'Image', animation: 'Background animation', button: 'Button', link: 'Link', paragraph: 'Paragraph',\n    list: 'List', card: 'Card / item', table: 'Table', 'table cell': 'Table row/cell', form: 'Form field', navigation: 'Navigation',\n    header: 'Header', footer: 'Footer', section: 'Whole section (incl. background)', label: 'Label / text', block: 'Block' };\n  function describe(el) {\n    var k = kindOf(el);\n    var t = k === 'image' ? clean(el.getAttribute('alt') || el.getAttribute('aria-label') || (el.getAttribute('src') || '').split('/').pop())\n      : k === 'animation' ? '' : clean(el.innerText || el.getAttribute('aria-label') || '');\n    if (k === 'block' && !t && el.querySelector('img,picture,svg,video')) return 'Image area';\n    return NAMES[k] + (t ? ': “' + (t.length > 60 ? t.slice(0, 59) + '…' : t) + '”' : '');\n  }\n  function sig(el) {\n    return { tag: el.tagName.toLowerCase(), text: clean(el.textContent).slice(0, 80), src: el.getAttribute('src') || '' };\n  }\n  // From the clicked element up to its area root: lets the user widen the scope (\"this heading\" → \"the block\" → \"whole section\").\n  function chainFor(el, area) {\n    var chain = [], n = el, guard = 0;\n    while (n && n !== area.el && guard++ < 6) {\n      if (!(n.tagName === 'DIV' && chain.length && clean(n.textContent) === clean(chain[chain.length - 1].text))) {\n        chain.push({ selector: uniqueSelector(n), label: describe(n), kind: kindOf(n), sig: sig(n), text: clean(n.textContent) });\n      }\n      n = n.parentElement;\n    }\n    chain.forEach(function (c) { delete c.text; });\n    chain.push({ selector: area.selector, label: area.kind === 'section' ? 'Whole section (incl. background)' : 'The whole ' + describe(area.el).split(':')[0].toLowerCase(), kind: 'area', sig: sig(area.el), root: true });\n    return chain;\n  }\n\n  function clearMarks(attr) { document.querySelectorAll('[' + attr + ']').forEach(function (n) { n.removeAttribute(attr); }); }\n  function paint() {\n    ['data-tse-sel', 'data-tse-area', 'data-tse-prot'].forEach(clearMarks);\n    var a = state.area && q(state.area);\n    var t = state.target && q(state.target);\n    if (t) { t.setAttribute('data-tse-sel', ''); if (a && a !== t) a.setAttribute('data-tse-area', ''); } else if (a) a.setAttribute('data-tse-sel', '');\n    state.protectedSelectors.forEach(function (sel) { var n = q(sel); if (n) n.setAttribute('data-tse-prot', ''); });\n  }\n\n  var hovered = null;\n  function setHover(el, label, x, y) {\n    if (hovered && hovered !== el) { hovered.removeAttribute('data-tse-hover'); hovered.removeAttribute('data-tse-hover-p'); }\n    hovered = el;\n    if (!el) { tip.style.display = 'none'; return; }\n    el.setAttribute(state.mode === 'protect' ? 'data-tse-hover-p' : 'data-tse-hover', '');\n    tip.textContent = label;\n    tip.style.display = 'block';\n    tip.style.left = Math.min(x + 14, window.innerWidth - 310) + 'px';\n    tip.style.top = Math.min(y + 16, window.innerHeight - 50) + 'px';\n  }\n  function pickable(e) {\n    var el = e.target;\n    if (!el || el.nodeType !== 1 || el === document.body || el === document.documentElement || el.id === 'tse-tip') return null;\n    var area = areaOf(el);\n    return area ? { el: el, area: area } : null;\n  }\n\n  document.addEventListener('mousemove', function (e) {\n    if (state.mode === 'off') return setHover(null);\n    var p = pickable(e);\n    if (!p) return setHover(null);\n    setHover(p.el, (state.mode === 'protect' ? 'Keep unchanged → ' : 'Change → ') + describe(p.el), e.clientX, e.clientY);\n  }, true);\n  document.addEventListener('mouseleave', function () { setHover(null); }, true);\n\n  document.addEventListener('click', function (e) {\n    if (state.mode === 'off') return;\n    e.preventDefault();\n    e.stopPropagation();\n    var p = pickable(e);\n    if (!p) return;\n    var area = { kind: p.area.kind, index: p.area.index, key: p.area.key, selector: p.area.selector };\n    post({ type: state.mode === 'protect' ? 'protect-picked' : 'target-picked', page: pagePath(), area: area, chain: chainFor(p.el, p.area) });\n  }, true);\n\n  window.addEventListener('message', function (e) {\n    if (e.origin !== EDITOR || !e.data || e.data.type !== 'state') return;\n    var d = e.data;\n    state.mode = d.mode === 'change' || d.mode === 'protect' ? d.mode : 'off';\n    state.area = typeof d.area === 'string' ? d.area : null;\n    state.target = typeof d.target === 'string' ? d.target : null;\n    state.protectedSelectors = Array.isArray(d.protectedSelectors) ? d.protectedSelectors : [];\n    if (state.mode === 'off') setHover(null);\n    paint();\n    if (typeof d.scrollY === 'number') { quietUntil = Date.now() + 250; window.scrollTo({ top: d.scrollY, behavior: 'instant' }); }\n    if (typeof d.scrollTo === 'string') {\n      quietUntil = Date.now() + 400;\n      var n = q(d.scrollTo);\n      if (n === sections()[0] || (n && n.parentElement === document.body && n.getBoundingClientRect().top < 200)) window.scrollTo(0, 0);\n      else if (n && n.offsetParent !== null) { var r = n.getBoundingClientRect(); window.scrollTo(0, Math.max(0, r.top + window.scrollY - (window.innerHeight - Math.min(r.height, window.innerHeight)) / 2)); }\n    }\n  });\n\n  // Report user scrolling so the editor can keep a before/after pair aligned (ignored right after programmatic scrolls).\n  var quietUntil = 0; var ticking = false;\n  window.addEventListener('scroll', function () {\n    if (ticking || Date.now() < quietUntil) return;\n    ticking = true;\n    requestAnimationFrame(function () { ticking = false; post({ type: 'scroll', y: window.scrollY }); });\n  }, { passive: true });\n\n  function ready() { post({ type: 'ready', page: pagePath(), sectionCount: sections().length }); }\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();\n})();\n";
 
-const TYPES = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml',
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', ico: 'image/x-icon', json: 'application/json', woff2: 'font/woff2' };
-const enc = new TextEncoder();
-const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+name: editor-job
 
-async function validToken(env, token, sha) {
-  const [exp, sig] = String(token).split('.');
-  if (!exp || !sig || Number(exp) < Date.now() / 1000) return false;
-  const key = await crypto.subtle.importKey('raw', enc.encode(env.PREVIEW_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const raw = Uint8Array.from(atob(sig.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((sig.length + 3) % 4)), (c) => c.charCodeAt(0));
-  return crypto.subtle.verify('HMAC', key, raw, enc.encode(`${sha}:${exp}`));
-}
+"on":
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Editor job number
+        required: true
+        type: string
 
-export default {
-  async fetch(req, rawEnv) {
-    const env = Object.create(rawEnv);
-    if (typeof rawEnv.EDITOR_ORIGIN === 'string') env.EDITOR_ORIGIN = rawEnv.EDITOR_ORIGIN.trim().replace(/\/+$/, '');
-    if (typeof rawEnv.TEST_REPO === 'string') env.TEST_REPO = rawEnv.TEST_REPO.trim();
-    const url = new URL(req.url);
-    if (url.pathname === '/__editor/health') {
-      // Setting names only (plus the public editor address, needed to diagnose framing problems); never secret values.
-      const missing = ['PREVIEW_SECRET', 'EDITOR_ORIGIN', 'TEST_REPO', 'SECTION_SELECTOR'].filter((k) => !rawEnv[k] || !String(rawEnv[k]).trim());
-      return new Response(JSON.stringify({ ok: !missing.length, missing, editorOrigin: env.EDITOR_ORIGIN || null, testRepo: env.TEST_REPO || null }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
-    }
-    const headers = { 'content-security-policy': `frame-ancestors ${env.EDITOR_ORIGIN}`, 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff', 'x-robots-tag': 'noindex' };
-    if (url.pathname === '/__editor/overlay.js') return new Response(OVERLAY, { headers: { ...headers, 'content-type': TYPES.js, 'cache-control': 'no-cache' } });
-    const m = url.pathname.match(/^\/p\/([^/]+)\/([0-9a-f]{40})\/(.*)$/);
-    if (!m) return new Response('Not found', { status: 404, headers });
-    const [, token, sha, rest] = m;
-    if (!(await validToken(env, token, sha))) return new Response('This preview link has expired. Reload the editor.', { status: 403, headers });
-    const file = rest || 'index.html';
-    if (file.includes('..') || !/^[\w./-]+$/.test(file)) return new Response('Not found', { status: 404, headers });
-    const upstream = await fetch(`${env.RAW_BASE || 'https://raw.githubusercontent.com'}/${env.TEST_REPO}/${sha}/${file}`, { cf: { cacheEverything: true, cacheTtl: 86400 } });
-    if (!upstream.ok) return new Response('Not found', { status: 404, headers });
-    const ext = (file.split('.').pop() || '').toLowerCase();
-    const type = TYPES[ext] || 'application/octet-stream';
-    if (ext === 'html') {
-      const attr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      const tag = `<script src="/__editor/overlay.js" data-editor-origin="${attr(env.EDITOR_ORIGIN)}" data-section-selector="${attr(env.SECTION_SELECTOR)}"></script>`;
-      const html = await upstream.text();
-      const out = html.includes('</body>') ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${tag}</body>`) : html + tag;
-      return new Response(out, { headers: { ...headers, 'content-type': type, 'cache-control': 'private, max-age=300' } });
-    }
-    return new Response(upstream.body, { headers: { ...headers, 'content-type': type, 'cache-control': 'private, max-age=3600' } });
-  },
-};
+permissions: {}
+
+concurrency:
+  group: editor-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev && npm install --no-save playwright@1.56.0 && npx playwright install --with-deps chromium
+
+      - name: Run job
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          EDITOR_API: ${{ vars.EDITOR_API }}
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run-job.js
