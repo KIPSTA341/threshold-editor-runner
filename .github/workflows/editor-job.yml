@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --omit=dev && npm install --no-save playwright@1.56.0 && npx playwright install --with-deps chromium
+      - run: npm install --omit=dev && npm install --no-save playwright@1.56.0 && npx playwright install --with-deps chromium
       - name: Run job
         env:
           JOB_ID: ${{ inputs.job_id }}
