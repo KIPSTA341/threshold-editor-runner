@@ -26,7 +26,12 @@ async function worker(step, body) {
   const spec = await worker('spec', { runUrl });
   if (process.env.GITHUB_ACTIONS) console.log(`::add-mask::${spec.githubToken}`);
   const { site, change } = spec;
-  if (site.repo === 'KIPSTA341/Threshold-Website') throw new Error('Refusing to touch the original Threshold repository.');
+  // GitHub names are case-insensitive: compare lower-cased, and only accept plain owner/repo and branch names.
+  if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(String(site.repo || ''))) throw new Error('Invalid repository name.');
+  if (String(site.repo).toLowerCase().replace(/\.git$/, '') === 'kipsta341/threshold-website') throw new Error('Refusing to touch the original Threshold repository.');
+  if (!/^[A-Za-z0-9._/-]{1,100}$/.test(String(site.branch || '')) || /(^|\/)\.|\.\.|\/$|^editor\//.test(site.branch)) throw new Error('Invalid base branch.');
+  if (!/^\d{1,9}$/.test(String(change && change.id))) throw new Error('Invalid change id.');
+  if (spec.kind === 'publish' && !/^editor\/change-\d{1,9}$/.test(String(change.branch || ''))) throw new Error('Invalid change branch.');
 
   // Configure the existing editor for this single job (temporary data folder, one site, one-time token).
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'editor-job-'));

@@ -160,8 +160,15 @@ async function getRegistry(site, sha) {
 
 // Checks that a CSS selector picked in the preview matches exactly one element on the page at that version,
 // and (optionally) that it lies inside the given area.
+// Selectors from the picker are child chains of #id, tag, .class and :nth-of-type(n) (see preview-overlay/overlay.js).
+// Anything else (descendant/sibling combinators, :has, :not, attribute or * selectors) is refused, so matching stays
+// linear in the page size and cannot block the server.
+const COMPOUND = String.raw`(?:#(?:[\w-]|\\[0-9a-fA-F]{1,6} ?|\\[^0-9a-fA-F\s])+|[a-z][a-z0-9-]*(?:\.[\w-]+)*(?::nth-of-type\(\d{1,4}\))?|(?:\.[\w-]+)+(?::nth-of-type\(\d{1,4}\))?)`;
+const SIMPLE_SELECTOR = new RegExp(`^${COMPOUND}(?: > ${COMPOUND}){0,40}$`);
+const simpleSelector = (s) => typeof s === 'string' && s.length <= 400 && SIMPLE_SELECTOR.test(s);
+
 async function validateSelector(site, sha, page, selector, withinSelector) {
-  if (typeof selector !== 'string' || selector.length > 400) return false;
+  if (!simpleSelector(selector) || (withinSelector && !simpleSelector(withinSelector))) return false;
   const html = await readFile(site, sha, page);
   if (!html) return false;
   try {
@@ -178,13 +185,13 @@ async function validateSelector(site, sha, page, selector, withinSelector) {
 // the same element the user clicked (tag + text/image source match). Returns one boolean per item.
 async function resolveChain(site, sha, page, areaSelector, chain) {
   const html = await readFile(site, sha, page);
-  if (!html || !Array.isArray(chain) || chain.length > 10) return null;
+  if (!html || !Array.isArray(chain) || chain.length > 10 || !simpleSelector(areaSelector)) return null;
   const $ = cheerio.load(html.toString('utf8'));
   let area;
   try { area = $(areaSelector); } catch { return null; }
   if (area.length !== 1) return null;
   return chain.map((c) => {
-    if (!c || typeof c.selector !== 'string' || c.selector.length > 400) return false;
+    if (!c || !simpleSelector(c.selector)) return false;
     let el;
     try { el = $(c.selector); } catch { return false; }
     if (el.length !== 1 || !(el[0] === area[0] || area.find(el).length === 1)) return false;
@@ -195,4 +202,4 @@ async function resolveChain(site, sha, page, areaSelector, chain) {
   });
 }
 
-module.exports = { resolveChain,  SHA_RE, getSite, syncSite, currentSha, readFile, listFiles, isAllowedPath, getRegistry, validateSelector };
+module.exports = { resolveChain, simpleSelector,  SHA_RE, getSite, syncSite, currentSha, readFile, listFiles, isAllowedPath, getRegistry, validateSelector };

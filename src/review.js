@@ -43,9 +43,13 @@ async function changeSummary(g) {
       const imgs = (S) => S('img').toArray().map((e) => S(e).attr('src'));
       const ia = imgs($a); const ib = imgs($b);
       ib.forEach((src, k) => { if (src !== ia[k] && !ia.includes(src)) items.push({ kind: 'image', page: pg.title, before: ia[k] || '(none)', after: src }); });
+      // Changed link targets are shown too, so a publisher sees where a link now goes, not only its text.
+      const hrefs = (S) => S('a[href]').toArray().map((e) => S(e).attr('href'));
+      const ha = hrefs($a); const hb = hrefs($b);
+      hb.forEach((h, k) => { if (h !== ha[k] && !ha.includes(h)) items.push({ kind: 'link', text: `Link on ${pg.title} now goes to ${h}${ha[k] ? ` (was ${ha[k]})` : ''}` }); });
       const st = (S) => norm(S('head style[data-editor]').text());
       if (st($a) !== st($b)) items.push({ kind: 'design', text: `Design adjustments (fonts, colours, spacing or layout) for the selection on ${pg.title} only` });
-      if (!changes.length && st($a) === st($b) && ia.join() === ib.join() && sa.length === sb.length) items.push({ kind: 'design', text: `Page structure or attributes adjusted on ${pg.title}` });
+      if (!changes.length && st($a) === st($b) && ia.join() === ib.join() && ha.join() === hb.join() && sa.length === sb.length) items.push({ kind: 'design', text: `Page structure or attributes adjusted on ${pg.title}` });
     } else if (shared.includes(p)) {
       items.push({ kind: 'shared', text: `Shared site-wide ${p.endsWith('.css') ? 'styles' : 'script'} changed — affects all ${reg.pages.length} pages` });
     } else items.push({ kind: 'image', text: `New image added (${p})` });
