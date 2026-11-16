@@ -33,8 +33,16 @@ function collect({ sectionSelector, protectedSelectors }) {
   return { sections, outside, prot, scrollWidth: document.documentElement.scrollWidth, innerWidth };
 }
 
+// Every snapshot has a hard deadline, so a page that never settles cannot stall the one-at-a-time generation queue.
+const SNAPSHOT_MS = Number(process.env.RENDER_SNAPSHOT_TIMEOUT_MS) || 60000;
 async function snapshot(browser, url, vp, opts) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, reducedMotion: 'reduce' });
+  let timer;
+  const deadline = new Promise((_r, reject) => { timer = setTimeout(() => reject(new Error('The rendered check took too long on this page.')), SNAPSHOT_MS); });
+  try { return await Promise.race([takeSnapshot(ctx, url, opts), deadline]); }
+  finally { clearTimeout(timer); await ctx.close().catch(() => {}); }
+}
+async function takeSnapshot(ctx, url, opts) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -43,12 +51,11 @@ async function snapshot(browser, url, vp, opts) {
   // Scroll through once so scroll-triggered reveals settle identically in both versions.
   await page.evaluate(async () => {
     const step = innerHeight * 0.8;
-    for (let y = 0; y < document.documentElement.scrollHeight; y += step) { scrollTo({ top: y, behavior: 'instant' }); await new Promise((r) => setTimeout(r, 40)); }
+    for (let y = 0, n = 0; y < document.documentElement.scrollHeight && n < 250; y += step, n++) { scrollTo({ top: y, behavior: 'instant' }); await new Promise((r) => setTimeout(r, 40)); }
     scrollTo({ top: 0, behavior: 'instant' });
   });
   await page.waitForTimeout(400);
   const data = await page.evaluate(collect, opts);
-  await ctx.close();
   return { ...data, errors };
 }
 
@@ -111,4 +118,4 @@ async function renderCheck({ site, baseSha, newSha, jobs, sharedPermitted }) {
   return { checks, flagged };
 }
 
-module.exports = { renderCheck, loadPlaywright };
+module.exports = { renderCheck, loadPlaywright, snapshot };

@@ -131,8 +131,18 @@ function validateStatic(o) {
     extScripts($n).filter((x) => !baseExt.has(x)).forEach((x) => sec.push(`new embedded resource ${x}`));
     const handlers = (S) => S('*').toArray().reduce((n, e) => n + Object.keys(e.attribs || {}).filter((a) => /^on/i.test(a)).length, 0);
     if (handlers($n) > handlers($b)) sec.push('new inline event handlers (on…= attributes)');
-    if ($n('[href^="javascript:"],[src^="javascript:"]').length > $b('[href^="javascript:"],[src^="javascript:"]').length) sec.push('javascript: links');
-    $n('style[data-editor]').each((_i, e) => { if (/@import|url\(\s*['"]?(https?:)?\/\//i.test($n(e).html())) sec.push('external resources in page styles'); });
+    // javascript:/vbscript:/data: URLs in any URL attribute, ignoring case, whitespace and control characters.
+    const scriptUrls = (S) => S('*').toArray().reduce((n, e) => n + Object.entries(e.attribs || {})
+      .filter(([a, v]) => /^(href|src|action|formaction|xlink:href|data|poster|srcdoc)$/i.test(a) && (/^srcdoc$/i.test(a) || /^(javascript|vbscript|data:text\/html)/i.test(String(v).replace(/[\s\x00-\x1f]/g, '')))).length, 0);
+    if (scriptUrls($n) > scriptUrls($b)) sec.push('javascript: links');
+    // The AI edits markup and styles only: any inline script it adds or changes is refused.
+    const inline = (S) => S('script:not([src])').toArray().filter((e) => !/^application\/(ld\+)?json$/i.test(S(e).attr('type') || '')).map((e) => S(e).html());
+    const baseInline = new Set(inline($b));
+    if (inline($n).some((t) => !baseInline.has(t))) sec.push('new or changed inline script');
+    // External resources from any <style> element or style="" attribute, compared with the original page.
+    const extCss = (S) => S('style').toArray().map((e) => S(e).html()).concat(S('[style]').toArray().map((e) => S(e).attr('style')))
+      .reduce((n, t) => n + (String(t).match(/@import|url\(\s*['"]?\s*(https?:)?\/\//gi) || []).length, 0);
+    if (extCss($n) > extCss($b)) sec.push('external resources in page styles');
     add(`sec:${p}`, `No unsafe code added (${p})`, sec.length ? 'fail' : 'pass', sec.join('; '));
 
     const refs = (S) => S('[href],[src]').toArray().map((e) => S(e).attr('href') || S(e).attr('src'));

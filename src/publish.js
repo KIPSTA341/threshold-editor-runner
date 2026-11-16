@@ -51,6 +51,8 @@ function serialize(p) {
 
 // Push a commit to a fresh branch, open a pull request and merge it. Returns { prNumber, prUrl, mergeSha }.
 async function ship(site, token, { commit, branch, title, body }) {
+  // Only ever force-push the editor's own branches, never the site's base branch.
+  if (!/^editor\/(r\d{1,9}-g\d{1,9}|restore-\d{1,9}|change-\d{1,9})$/.test(String(branch)) || branch === site.branch) throw new Error('Refusing to push to a branch the editor does not own.');
   const env = gh.gitAuthEnv(token);
   await git(site, ['push', '--force', remoteUrl(site), `${commit}:refs/heads/${branch}`], env);
   const pr = await gh.call('POST', `/repos/${site.githubRepo}/pulls`, { token, body: { title, head: branch, base: site.branch, body } });

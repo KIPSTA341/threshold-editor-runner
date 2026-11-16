@@ -3,7 +3,8 @@ const crypto = require('crypto');
 const { db, audit } = require('./db');
 const { SESSION_DAYS, SECURE_COOKIES, EDITOR_ORIGIN } = require('./config');
 
-const COOKIE = 'tse_sid';
+// __Host- (Secure, Path=/, no Domain) stops a sibling subdomain from planting or overriding the session cookie.
+const COOKIE = SECURE_COOKIES ? '__Host-tse_sid' : 'tse_sid';
 const ROLE_RANK = { viewer: 1, editor: 2, publisher: 3, admin: 4 };
 const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const MAX_FAILS = 8;
@@ -37,7 +38,10 @@ function parseCookies(header = '') {
   const out = {};
   header.split(';').forEach((p) => {
     const i = p.indexOf('=');
-    if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+    if (i <= 0) return;
+    const k = p.slice(0, i).trim();
+    if (k in out) return; // first wins: browsers send the most specific (host-only, longest path) cookie first
+    try { out[k] = decodeURIComponent(p.slice(i + 1).trim()); } catch { /* malformed %-escape: ignore this cookie, never 500 */ }
   });
   return out;
 }
